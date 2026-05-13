@@ -2,7 +2,6 @@ import json
 import time
 import requests
 from datetime import datetime, timedelta
-from http.server import BaseHTTPRequestHandler
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; TWChipDashboard/1.0)"}
 
@@ -35,4 +34,16 @@ def fetch_json(url):
                 return d
             return None
         except Exception:
-            time.sl
+            time.sleep(2 * (attempt + 1))
+    return None
+
+def to_num(v):
+    try:
+        return float(str(v).replace(",", ""))
+    except:
+        return 0.0
+
+def fetch_institutional(date_str):
+    url = (f"https://www.twse.com.tw/rwd/zh/fund/T86"
+           f"?response=json&date={date_str}&selectType=ALL")
+    d = fetch_json(url)
