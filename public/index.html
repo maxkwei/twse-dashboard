@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>台股籌碼 Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f0f17;color:#e0e0e0;min-height:100vh}
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#1e1e2e;border-bottom:1px solid #2a2a3e}
+.top-bar h1{font-size:16px;font-weight:600;color:#fff}
+.top-bar .time{font-size:11px;color:#888}
+.stock-bar{display:flex;gap:8px;overflow-x:auto;padding:10px 16px;background:#1e1e2e;border-bottom:1px solid #2a2a3e;scrollbar-width:none}
+.stock-bar::-webkit-scrollbar{display:none}
+.stock-btn{padding:6px 16px;border-radius:20px;font-size:13px;cursor:pointer;border:1px solid #3a3a5e;background:transparent;color:#aaa;white-space:nowrap;flex-shrink:0;transition:all 0.2s}
+.stock-btn.active{background:#4fc3f7;color:#0f0f17;border-color:#4fc3f7;font-weight:600}
+.tabs{display:flex;background:#1e1e2e;border-bottom:1px solid #2a2a3e;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:10px 16px;font-size:13px;cursor:pointer;color:#888;border-bottom:2px solid transparent;white-space:nowrap;flex-shrink:0}
+.tab.active{color:#4fc3f7;border-bottom-color:#4fc3f7;font-weight:500}
+.section{padding:14px 16px;display:none}
