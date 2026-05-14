@@ -118,72 +118,78 @@ def fetch_history(stock_id, months=2):
     return sorted(result, key=lambda x: x["date"])
 
 
-def app(environ, start_response):
-    from urllib.parse import parse_qs
-    query = environ.get("QUERY_STRING", "")
-    params = parse_qs(query)
-    stock_id = params.get("stock", ["2330"])[0].strip()
+from http.server import BaseHTTPRequestHandler
 
-    date_str = get_target_date()
-    now_tw   = get_tw_time()
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        from urllib.parse import parse_qs
+        query = self.path.split("?", 1)[1] if "?" in self.path else ""
+        params = parse_qs(query)
+        stock_id = params.get("stock", ["2330"])[0].strip()
 
-    inst_all   = fetch_institutional(date_str)
-    margin_all = fetch_margin(date_str)
-    history    = fetch_history(stock_id, months=2)
+        date_str = get_target_date()
+        now_tw   = get_tw_time()
 
-    stock_inst   = next((r for r in inst_all if r["code"] == stock_id), None)
-    stock_margin = margin_all.get(stock_id, {})
+        inst_all   = fetch_institutional(date_str)
+        margin_all = fetch_margin(date_str)
+        history    = fetch_history(stock_id, months=2)
 
-    if stock_inst:
-        total = stock_inst["foreign"] + stock_inst["trust"] + stock_inst["dealer"]
-        stock_inst["total"] = total
-        fb    = stock_margin.get("loan_bal", 0)
-        sb    = stock_margin.get("short_bal", 0)
-        ratio = round(sb / fb * 100, 1) if fb > 0 else 0
-        f, t, d = stock_inst["foreign"], stock_inst["trust"], stock_inst["dealer"]
-        signals = []
-        if f > 1000:    signals.append({"text": "外資大買超(>1000張)", "type": "bull"})
-        elif f < -1000: signals.append({"text": "外資大賣超(>1000張)", "type": "bear"})
-        elif f > 0:     signals.append({"text": "外資買超", "type": "bull"})
-        elif f < 0:     signals.append({"text": "外資賣超", "type": "bear"})
-        if t > 200:     signals.append({"text": "投信積極布局(>200張)", "type": "bull"})
-        elif t > 0:     signals.append({"text": "投信買超", "type": "bull"})
-        elif t < 0:     signals.append({"text": "投信賣超", "type": "warn"})
-        if f > 0 and t > 0 and d > 0:
-            signals.append({"text": "三大法人同步買超", "type": "bull"})
-        elif f < 0 and t < 0 and d < 0:
-            signals.append({"text": "三大法人同步賣超", "type": "bear"})
-        if ratio > 25:
-            signals.append({"text": f"券資比{ratio}%，留意軋空", "type": "warn"})
-    else:
-        total = ratio = 0
-        signals = [{"text": "查無法人資料", "type": "warn"}]
+        stock_inst   = next((r for r in inst_all if r["code"] == stock_id), None)
+        stock_margin = margin_all.get(stock_id, {})
 
-    response = {
-        "stock_id":    stock_id,
-        "name":        stock_inst["name"] if stock_inst else stock_id,
-        "date":        date_str,
-        "update_time": now_tw.strftime("%Y/%m/%d %H:%M") + " CST",
-        "inst": {
-            "foreign": stock_inst["foreign"] if stock_inst else 0,
-            "trust":   stock_inst["trust"]   if stock_inst else 0,
-            "dealer":  stock_inst["dealer"]  if stock_inst else 0,
-            "total":   total,
-        },
-        "margin": {
-            "loan_bal":   stock_margin.get("loan_bal",   0),
-            "short_bal":  stock_margin.get("short_bal",  0),
-            "short_sell": stock_margin.get("short_sell", 0),
-            "ratio":      ratio,
-        },
-        "signals": signals,
-        "history": history,
-    }
+        if stock_inst:
+            total = stock_inst["foreign"] + stock_inst["trust"] + stock_inst["dealer"]
+            stock_inst["total"] = total
+            fb    = stock_margin.get("loan_bal", 0)
+            sb    = stock_margin.get("short_bal", 0)
+            ratio = round(sb / fb * 100, 1) if fb > 0 else 0
+            f, t, d = stock_inst["foreign"], stock_inst["trust"], stock_inst["dealer"]
+            signals = []
+            if f > 1000:    signals.append({"text": "外資大買超(>1000張)", "type": "bull"})
+            elif f < -1000: signals.append({"text": "外資大賣超(>1000張)", "type": "bear"})
+            elif f > 0:     signals.append({"text": "外資買超", "type": "bull"})
+            elif f < 0:     signals.append({"text": "外資賣超", "type": "bear"})
+            if t > 200:     signals.append({"text": "投信積極布局(>200張)", "type": "bull"})
+            elif t > 0:     signals.append({"text": "投信買超", "type": "bull"})
+            elif t < 0:     signals.append({"text": "投信賣超", "type": "warn"})
+            if f > 0 and t > 0 and d > 0:
+                signals.append({"text": "三大法人同步買超", "type": "bull"})
+            elif f < 0 and t < 0 and d < 0:
+                signals.append({"text": "三大法人同步賣超", "type": "bear"})
+            if ratio > 25:
+                signals.append({"text": f"券資比{ratio}%，留意軋空", "type": "warn"})
+        else:
+            total = ratio = 0
+            signals = [{"text": "查無法人資料", "type": "warn"}]
 
-    body = json.dumps(response, ensure_ascii=False).encode("utf-8")
-    start_response("200 OK", [
-        ("Content-Type",                 "application/json; charset=utf-8"),
-        ("Access-Control-Allow-Origin",  "*"),
-        ("Content-Length",               str(len(body))),
-    ])
-    return [body]
+        response = {
+            "stock_id":    stock_id,
+            "name":        stock_inst["name"] if stock_inst else stock_id,
+            "date":        date_str,
+            "update_time": now_tw.strftime("%Y/%m/%d %H:%M") + " CST",
+            "inst": {
+                "foreign": stock_inst["foreign"] if stock_inst else 0,
+                "trust":   stock_inst["trust"]   if stock_inst else 0,
+                "dealer":  stock_inst["dealer"]  if stock_inst else 0,
+                "total":   total,
+            },
+            "margin": {
+                "loan_bal":   stock_margin.get("loan_bal",   0),
+                "short_bal":  stock_margin.get("short_bal",  0),
+                "short_sell": stock_margin.get("short_sell", 0),
+                "ratio":      ratio,
+            },
+            "signals": signals,
+            "history": history,
+        }
+
+        body = json.dumps(response, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        pass
