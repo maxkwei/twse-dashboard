@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -72,71 +73,4 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div id="content2"><div class="loading"><div class="spinner"></div>載入中...</div></div>
 </div>
 <div class="section" id="sec3">
-  <div id="content3"><div class="loading"><div class="spinner"></div>載入中...</div></div>
-</div>
-
-<script>
-const WATCH_LIST = [
-  {id:"2330",name:"台積電"},
-  {id:"2317",name:"鴻海"},
-  {id:"2454",name:"聯發科"},
-  {id:"0050",name:"元大50"},
-];
-
-let curStock = "2330";
-let curTab   = 0;
-let cache    = {};
-let charts   = {};
-
-function updateTime(){
-  const tw = new Date(Date.now() + 8*3600000);
-  document.getElementById("nowTime").textContent =
-    tw.toISOString().slice(0,10) + " " + tw.toISOString().slice(11,16) + " CST";
-}
-setInterval(updateTime, 1000);
-updateTime();
-
-function buildStockBar(){
-  document.getElementById("stockBar").innerHTML =
-    WATCH_LIST.map(s =>
-      `<button class="stock-btn${s.id===curStock?" active":""}"
-        onclick="selectStock('${s.id}')">${s.id} ${s.name}</button>`
-    ).join("");
-}
-
-function selectStock(id){
-  curStock = id;
-  buildStockBar();
-  cache = {};
-  renderTab(curTab);
-}
-
-function switchTab(i){
-  curTab = i;
-  document.querySelectorAll(".tab").forEach((t,j)=>t.classList.toggle("active",j===i));
-  document.querySelectorAll(".section").forEach((s,j)=>s.classList.toggle("active",j===i));
-  renderTab(i);
-}
-
-async function fetchData(stock){
-  if(cache[stock]) return cache[stock];
-  const res  = await fetch(`/api/chips?stock=${stock}`);
-  const data = await res.json();
-  cache[stock] = data;
-  setTimeout(()=>{ delete cache[stock]; }, 5*60*1000);
-  return data;
-}
-
-function fmt(v){ return (v>=0?"+":"")+Number(v).toLocaleString(); }
-function fmtK(v){ return Math.abs(v)>=1000?(v/1000).toFixed(1)+"K":Number(v).toFixed(0); }
-
-function destroyChart(id){
-  if(charts[id]){ charts[id].destroy(); delete charts[id]; }
-}
-
-async function renderTab(tab){
-  const el = document.getElementById("content"+tab);
-  el.innerHTML = `<div class="loading"><div class="spinner"></div>載入中...</div>`;
-  let data;
-  try {
-    data = awa
+  <div id="content3"><div class="loading"><div class="spinner"></div>載
