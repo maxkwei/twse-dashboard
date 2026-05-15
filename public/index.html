@@ -1,5 +1,4 @@
-
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
@@ -73,4 +72,298 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div id="content2"><div class="loading"><div class="spinner"></div>載入中...</div></div>
 </div>
 <div class="section" id="sec3">
-  <div id="content3"><div class="loading"><div class="spinner"></div>載
+  <div id="content3"><div class="loading"><div class="spinner"></div>載入中...</div></div>
+</div>
+
+<script>
+const WATCH_LIST = [
+  {id:"2330",name:"台積電"},
+  {id:"2317",name:"鴻海"},
+  {id:"2454",name:"聯發科"},
+  {id:"0050",name:"元大50"},
+];
+
+let curStock = "2330";
+let curTab   = 0;
+let chipCache    = {};
+let histCache    = {};
+let charts   = {};
+
+function updateTime(){
+  const tw = new Date(Date.now() + 8*3600000);
+  document.getElementById("nowTime").textContent =
+    tw.toISOString().slice(0,10) + " " + tw.toISOString().slice(11,16) + " CST";
+}
+setInterval(updateTime, 1000);
+updateTime();
+
+function buildStockBar(){
+  document.getElementById("stockBar").innerHTML =
+    WATCH_LIST.map(s =>
+      `<button class="stock-btn${s.id===curStock?" active":""}"
+        onclick="selectStock('${s.id}')">${s.id} ${s.name}</button>`
+    ).join("");
+}
+
+function selectStock(id){
+  curStock = id;
+  buildStockBar();
+  renderTab(curTab);
+}
+
+function switchTab(i){
+  curTab = i;
+  document.querySelectorAll(".tab").forEach((t,j)=>t.classList.toggle("active",j===i));
+  document.querySelectorAll(".section").forEach((s,j)=>s.classList.toggle("active",j===i));
+  renderTab(i);
+}
+
+async function fetchChip(stock){
+  if(chipCache[stock]) return chipCache[stock];
+  const res  = await fetch(`/api/chips?stock=${stock}`);
+  const data = await res.json();
+  chipCache[stock] = data;
+  setTimeout(()=>{ delete chipCache[stock]; }, 5*60*1000);
+  return data;
+}
+
+async function fetchHistory(stock){
+  if(histCache[stock]) return histCache[stock];
+  const res  = await fetch(`/api/history?stock=${stock}&months=2`);
+  const data = await res.json();
+  histCache[stock] = data.history || [];
+  setTimeout(()=>{ delete histCache[stock]; }, 5*60*1000);
+  return histCache[stock];
+}
+
+function fmt(v){ return (v>=0?"+":"")+Number(v).toLocaleString(); }
+function fmtK(v){ return Math.abs(v)>=1000?(v/1000).toFixed(1)+"K":Number(v).toFixed(0); }
+
+function destroyChart(id){
+  if(charts[id]){ charts[id].destroy(); delete charts[id]; }
+}
+
+async function renderTab(tab){
+  const el = document.getElementById("content"+tab);
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>載入中...</div>`;
+
+  try {
+    if(tab===0){
+      const data = await fetchChip(curStock);
+      renderChip(el, data);
+    }
+    else if(tab===1){
+      const hist = await fetchHistory(curStock);
+      renderKBar(el, hist);
+    }
+    else if(tab===2){
+      const data = await fetchChip(curStock);
+      renderMargin(el, data);
+    }
+    else if(tab===3){
+      const [data, hist] = await Promise.all([
+        fetchChip(curStock),
+        fetchHistory(curStock)
+      ]);
+      renderHistory(el, data, hist);
+    }
+  } catch(e) {
+    el.innerHTML = `<div class="error-msg">資料載入失敗：${e.message}</div>
+      <button class="refresh-btn" onclick="chipCache={}; histCache={}; renderTab(${tab})">重新載入</button>`;
+  }
+}
+
+function renderChip(el, d){
+  const inst = d.inst || {};
+  const sigs = d.signals || [];
+  el.innerHTML = `
+    <div class="date-badge">資料日期：${d.date} ｜ ${d.update_time}</div>
+    <div class="metrics">
+      <div class="metric"><div class="lbl">外資買賣超</div>
+        <div class="val ${inst.foreign>=0?"up":"dn"}">${fmt(inst.foreign)}</div></div>
+      <div class="metric"><div class="lbl">投信買賣超</div>
+        <div class="val ${inst.trust>=0?"up":"dn"}">${fmt(inst.trust)}</div></div>
+      <div class="metric"><div class="lbl">自營買賣超</div>
+        <div class="val ${inst.dealer>=0?"up":"dn"}">${fmt(inst.dealer)}</div></div>
+      <div class="metric"><div class="lbl">三大法人合計</div>
+        <div class="val ${inst.total>=0?"up":"dn"}">${fmt(inst.total)}</div></div>
+    </div>
+    <div class="section-title">訊號解讀</div>
+    <div class="signal-list">
+      ${sigs.map(s=>`<div class="signal ${s.type}">${s.text}</div>`).join("")}
+    </div>
+    <div class="section-title">三大法人買賣超（張）</div>
+    <div class="legend">
+      <span><i style="background:#4fc3f7"></i>外資</span>
+      <span><i style="background:#ffb74d"></i>投信</span>
+      <span><i style="background:#ce93d8"></i>自營</span>
+    </div>
+    <div class="chart-wrap" style="height:200px">
+      <canvas id="instChart"></canvas>
+    </div>`;
+
+  destroyChart("inst");
+  charts["inst"] = new Chart(document.getElementById("instChart"),{
+    type:"bar",
+    data:{
+      labels:["外資","投信","自營"],
+      datasets:[{
+        data:[inst.foreign, inst.trust, inst.dealer],
+        backgroundColor:["#4fc3f7","#ffb74d","#ce93d8"],
+        borderRadius:4
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>`${fmt(ctx.raw)} 張`}}},
+      scales:{
+        x:{ticks:{color:"#888",font:{size:13}},grid:{display:false}},
+        y:{ticks:{color:"#888",font:{size:11},callback:v=>fmtK(v)},
+          grid:{color:"rgba(255,255,255,0.06)"}}
+      }}
+  });
+}
+
+function renderKBar(el, p){
+  p = (p||[]).slice(-30);
+  if(!p.length){
+    el.innerHTML=`<div class="error-msg">無歷史價格資料</div>`; return;
+  }
+  el.innerHTML = `
+    <div class="section-title">股價走勢（近30日）</div>
+    <div class="chart-wrap" style="height:250px">
+      <canvas id="kChart"></canvas>
+    </div>
+    <div class="section-title">成交量（張）</div>
+    <div class="chart-wrap" style="height:120px">
+      <canvas id="volChart"></canvas>
+    </div>`;
+
+  destroyChart("k"); destroyChart("vol");
+  const labels   = p.map(r=>r.date.slice(5));
+  const upColor  = "rgba(76,175,125,0.85)";
+  const dnColor  = "rgba(239,83,80,0.85)";
+  const upColorT = "rgba(76,175,125,0.35)";
+  const dnColorT = "rgba(239,83,80,0.35)";
+
+  charts["k"] = new Chart(document.getElementById("kChart"),{
+    type:"bar",
+    data:{labels,datasets:[
+      {label:"高低",data:p.map(r=>[r.low,r.high]),
+        backgroundColor:p.map(r=>r.close>=r.open?upColorT:dnColorT),
+        barPercentage:0.2,borderRadius:0},
+      {label:"開收",data:p.map(r=>[Math.min(r.open,r.close),Math.max(r.open,r.close)]),
+        backgroundColor:p.map(r=>r.close>=r.open?upColor:dnColor),
+        barPercentage:0.7,borderRadius:2}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{
+          title:ctx=>p[ctx[0].dataIndex].date,
+          label:ctx=>{
+            const r=p[ctx.dataIndex];
+            return `開${r.open} 高${r.high} 低${r.low} 收${r.close}`;
+          }
+        }}},
+      scales:{
+        x:{ticks:{color:"#888",font:{size:10},maxRotation:45,autoSkip:true},grid:{display:false}},
+        y:{ticks:{color:"#888",font:{size:11}},grid:{color:"rgba(255,255,255,0.06)"}}
+      }}
+  });
+
+  charts["vol"] = new Chart(document.getElementById("volChart"),{
+    type:"bar",
+    data:{labels,datasets:[{
+      data:p.map(r=>r.vol),
+      backgroundColor:p.map(r=>r.close>=r.open?"rgba(76,175,125,0.6)":"rgba(239,83,80,0.6)"),
+      borderRadius:2
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString()} 張`}}},
+      scales:{
+        x:{ticks:{color:"#888",font:{size:10},maxRotation:45,autoSkip:true},grid:{display:false}},
+        y:{ticks:{color:"#888",font:{size:11},callback:v=>fmtK(v)},
+          grid:{color:"rgba(255,255,255,0.06)"}}
+      }}
+  });
+}
+
+function renderMargin(el, d){
+  const m = d.margin || {};
+  const ratio = m.ratio || 0;
+  el.innerHTML = `
+    <div class="date-badge">資料日期：${d.date} ｜ ${d.update_time}</div>
+    <div class="metrics">
+      <div class="metric"><div class="lbl">融資餘額（千股）</div>
+        <div class="val neu">${Number(m.loan_bal||0).toLocaleString()}</div></div>
+      <div class="metric"><div class="lbl">融券餘額（千股）</div>
+        <div class="val neu">${Number(m.short_bal||0).toLocaleString()}</div></div>
+      <div class="metric"><div class="lbl">融券張數</div>
+        <div class="val neu">${Number(m.short_sell||0).toLocaleString()}</div></div>
+      <div class="metric"><div class="lbl">券資比</div>
+        <div class="val ${ratio>25?"dn":ratio<5?"up":"neu"}">${ratio}%</div></div>
+    </div>
+    <div class="section-title">券資比解讀</div>
+    <div class="signal-list">
+      ${ratio>25
+        ? `<div class="signal warn">券資比 ${ratio}%，空頭偏重，留意軋空機會</div>`
+        : ratio<5
+        ? `<div class="signal bull">券資比 ${ratio}%，空頭稀少，市場偏多</div>`
+        : `<div class="signal warn">券資比 ${ratio}%，中性區間</div>`
+      }
+    </div>`;
+}
+
+function renderHistory(el, d, hist){
+  if(!hist||!hist.length){
+    el.innerHTML=`<div class="error-msg">無歷史資料</div>`; return;
+  }
+  const inst  = d.inst || {};
+  const days  = Math.min(hist.length, 30);
+  const dates = hist.slice(-days).map(r=>r.date.slice(5));
+  const close = hist.slice(-days).map(r=>r.close);
+
+  el.innerHTML = `
+    <div class="date-badge">資料日期：${d.date} ｜ ${d.update_time}</div>
+    <div class="section-title">收盤價走勢（近${days}日）</div>
+    <div class="chart-wrap" style="height:200px">
+      <canvas id="priceHistChart"></canvas>
+    </div>
+    <div class="section-title">今日法人明細</div>
+    <div class="metrics">
+      <div class="metric"><div class="lbl">外資</div>
+        <div class="val ${inst.foreign>=0?"up":"dn"}">${fmt(inst.foreign)} 張</div></div>
+      <div class="metric"><div class="lbl">投信</div>
+        <div class="val ${inst.trust>=0?"up":"dn"}">${fmt(inst.trust)} 張</div></div>
+      <div class="metric"><div class="lbl">自營</div>
+        <div class="val ${inst.dealer>=0?"up":"dn"}">${fmt(inst.dealer)} 張</div></div>
+      <div class="metric"><div class="lbl">合計</div>
+        <div class="val ${inst.total>=0?"up":"dn"}">${fmt(inst.total)} 張</div></div>
+    </div>`;
+
+  destroyChart("priceHist");
+  charts["priceHist"] = new Chart(document.getElementById("priceHistChart"),{
+    type:"line",
+    data:{labels:dates,datasets:[{
+      label:"收盤價",data:close,
+      borderColor:"#4fc3f7",
+      backgroundColor:"rgba(79,195,247,0.08)",
+      tension:0.3,pointRadius:3,fill:true
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString()} 元`}}},
+      scales:{
+        x:{ticks:{color:"#888",font:{size:10},maxRotation:45,autoSkip:true},grid:{display:false}},
+        y:{ticks:{color:"#888",font:{size:11},callback:v=>v.toLocaleString()},
+          grid:{color:"rgba(255,255,255,0.06)"}}
+      }}
+  });
+}
+
+buildStockBar();
+renderTab(0);
+</script>
+</body>
+</html>
