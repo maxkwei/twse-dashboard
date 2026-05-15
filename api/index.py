@@ -70,8 +70,16 @@ def fetch_margin(date_str):
     d = fetch_json(url)
     if d is None:
         return {}
+    # API 回傳兩個 table，第二個（index 1）才是個股融資融券彙總
+    tables = d.get("tables", [])
+    if len(tables) < 2:
+        return {}
+    table2 = tables[1]
+    rows = table2.get("data", [])
+    if not rows:
+        return {}
     margin = {}
-    for row in d["data"]:
+    for row in rows:
         try:
             code = str(row[0]).strip()
             margin[code] = {
