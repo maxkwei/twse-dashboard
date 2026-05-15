@@ -78,7 +78,10 @@ def fetch_margin(date_str):
     margin = {}
     for row in rows:
         try:
-            code = str(row[0]).strip()
+            if len(row) < 13:
+                continue
+            code = str(row[0]).strip().lstrip("0") or str(row[0]).strip()
+            code_orig = str(row[0]).strip()
             margin[code] = {
                 "loan_buy":   to_num(row[2])  if len(row) > 2  else 0,
                 "loan_sell":  to_num(row[3])  if len(row) > 3  else 0,
@@ -138,6 +141,12 @@ def chips():
 
     stock_inst   = next((r for r in inst_all if r["code"] == stock_id), None)
     stock_margin = margin_all.get(stock_id, {})
+    if not stock_margin:
+        # 嘗試補零比對
+        for k in margin_all:
+            if k.strip() == stock_id.strip():
+                stock_margin = margin_all[k]
+                break
 
     if stock_inst:
         total = stock_inst["foreign"] + stock_inst["trust"] + stock_inst["dealer"]
