@@ -56,9 +56,9 @@ def fetch_institutional(date_str):
             results.append({
                 "code":    str(row[0]).strip(),
                 "name":    str(row[1]).strip(),
-                "foreign": to_num(row[2])  if len(row) > 2  else 0,
-                "trust":   to_num(row[5])  if len(row) > 5  else 0,
-                "dealer":  to_num(row[7])  if len(row) > 7  else 0,
+                "foreign": to_num(row[4])  if len(row) > 4  else 0,
+                "trust":   to_num(row[7])  if len(row) > 7  else 0,
+                "dealer":  to_num(row[10]) if len(row) > 10 else 0,
             })
         except Exception:
             continue
