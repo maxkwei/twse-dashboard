@@ -28,15 +28,12 @@ def get_target_date():
 def fetch_json(url):
     for attempt in range(3):
         try:
-            r = requests.get(url, headers=HEADERS, timeout=15)
+            r = requests.get(url, headers=HEADERS, timeout=8)
             r.raise_for_status()
             d = r.json()
-            if d.get("stat") == "OK" and "data" in d and d["data"]:
+            if d.get("stat") == "OK":
                 return d
             return None
-        except Exception:
-            time.sleep(2 * (attempt + 1))
-    return None
 
 def to_num(v):
     try:
