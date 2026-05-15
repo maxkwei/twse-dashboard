@@ -56,9 +56,9 @@ def fetch_institutional(date_str):
             results.append({
                 "code":    str(row[0]).strip(),
                 "name":    str(row[1]).strip(),
-                "foreign": to_num(row[4])  if len(row) > 4  else 0,
-                "trust":   to_num(row[7])  if len(row) > 7  else 0,
-                "dealer":  to_num(row[10]) if len(row) > 10 else 0,
+                "foreign": round(to_num(row[4])  / 1000) if len(row) > 4  else 0,
+                "trust":   round(to_num(row[7])  / 1000) if len(row) > 7  else 0,
+                "dealer":  round(to_num(row[10]) / 1000) if len(row) > 10 else 0,
             })
         except Exception:
             continue
@@ -75,12 +75,12 @@ def fetch_margin(date_str):
         try:
             code = str(row[0]).strip()
             margin[code] = {
-                "loan_buy":   to_num(row[2])  if len(row) > 2  else 0,
-                "loan_sell":  to_num(row[3])  if len(row) > 3  else 0,
-                "loan_bal":   to_num(row[6])  if len(row) > 6  else 0,
-                "short_sell": to_num(row[9])  if len(row) > 9  else 0,
-                "short_buy":  to_num(row[8])  if len(row) > 8  else 0,
-                "short_bal":  to_num(row[12]) if len(row) > 12 else 0,
+                "loan_buy":   round(to_num(row[2])  / 1000) if len(row) > 2  else 0,
+                "loan_sell":  round(to_num(row[3])  / 1000) if len(row) > 3  else 0,
+                "loan_bal":   round(to_num(row[6])  / 1000) if len(row) > 6  else 0,
+                "short_sell": round(to_num(row[9])  / 1000) if len(row) > 9  else 0,
+                "short_buy":  round(to_num(row[8])  / 1000) if len(row) > 8  else 0,
+                "short_bal":  round(to_num(row[12]) / 1000) if len(row) > 12 else 0,
             }
         except Exception:
             continue
