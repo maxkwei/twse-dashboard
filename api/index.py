@@ -34,6 +34,9 @@ def fetch_json(url):
             if d.get("stat") == "OK":
                 return d
             return None
+        except Exception:
+            time.sleep(1 * (attempt + 1))
+    return None
 
 def to_num(v):
     try:
@@ -47,9 +50,14 @@ def fetch_institutional(date_str):
     d = fetch_json(url)
     if d is None:
         return []
+    rows = d.get("data", [])
+    if not rows:
+        return []
     results = []
-    for row in d["data"]:
+    for row in rows:
         try:
+            if len(row) < 5:
+                continue
             results.append({
                 "code":    str(row[0]).strip(),
                 "name":    str(row[1]).strip(),
@@ -80,8 +88,7 @@ def fetch_margin(date_str):
         try:
             if len(row) < 13:
                 continue
-            code = str(row[0]).strip().lstrip("0") or str(row[0]).strip()
-            code_orig = str(row[0]).strip()
+            code = str(row[0]).strip()
             margin[code] = {
                 "loan_buy":   to_num(row[2])  if len(row) > 2  else 0,
                 "loan_sell":  to_num(row[3])  if len(row) > 3  else 0,
@@ -103,7 +110,7 @@ def fetch_history(stock_id, months=2):
                f"?response=json&date={dt.strftime('%Y%m%d')}&stockNo={stock_id}")
         d = fetch_json(url)
         if d:
-            for row in d["data"]:
+            for row in d.get("data", []):
                 try:
                     p = row[0].split("/")
                     date = f"{int(p[0])+1911}/{p[1]}/{p[2]}"
@@ -116,7 +123,7 @@ def fetch_history(stock_id, months=2):
                         "vol":   round(to_num(row[1]) / 1000),
                     })
                 except Exception:
-                    continuem
+                    continue
         time.sleep(0.3)
     seen = set()
     result = []
@@ -137,12 +144,12 @@ def chips():
 
     inst_all   = fetch_institutional(date_str)
     margin_all = fetch_margin(date_str)
-    history    = fetch_history(stock_id, months=2)
 
     stock_inst   = next((r for r in inst_all if r["code"] == stock_id), None)
+
+    # 比對融資融券（處理可能的空白字元）
     stock_margin = margin_all.get(stock_id, {})
     if not stock_margin:
-        # 嘗試補零比對
         for k in margin_all:
             if k.strip() == stock_id.strip():
                 stock_margin = margin_all[k]
@@ -191,10 +198,20 @@ def chips():
             "ratio":      ratio,
         },
         "signals": signals,
-        "history": history,
+        "history": [],
     }
 
     resp = jsonify(response)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
+
+
+@app.route("/api/history")
+def history():
+    stock_id = request.args.get("stock", "2330").strip()
+    months   = int(request.args.get("months", "2"))
+    data     = fetch_history(stock_id, months=months)
+    resp = jsonify({"history": data})
     resp.headers["Access-Control-Allow-Origin"] = "*"
     return resp
 
