@@ -116,7 +116,7 @@ def fetch_history(stock_id, months=2):
                         "vol":   round(to_num(row[1]) / 1000),
                     })
                 except Exception:
-                    continue
+                    continuem
         time.sleep(0.3)
     seen = set()
     result = []
